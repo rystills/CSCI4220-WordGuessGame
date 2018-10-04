@@ -6,8 +6,9 @@
 #include <sys/select.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/select.h>
 
-#define buffSize 2048
+#define BUFFSIZE 2048
 
 /**
 display an error message and exit the application
@@ -48,7 +49,7 @@ blocking i/o read from the socket, quitting the program if 0 bytes are read
 @param buff: the buffer in which to store the result of our read
 */
 void readMayQuit(int sock, char* buff) {
-	read(sock,buff,buffSize-1);
+	read(sock,buff,BUFFSIZE-1);
 }
 
 int main(int argc, char** argv) {
@@ -60,16 +61,18 @@ int main(int argc, char** argv) {
 
 	//~connect to server~
     int sock = connectToPort(atoi(argv[1]));
-    char buff[buffSize];
+    char buff[BUFFSIZE];
 
 	//~blocking i/o wait for server to respond~
     readMayQuit(sock,buff);
 
-    char userName[buffSize];
+    char userName[BUFFSIZE];
 	//~loop: askinput for username and send to server~
 	while (true) {
 		//if we didn't quit, then we know the server asked for our username; grab it from the user and stick it in buff
-	    fgets(buff, buffSize, stdin);
+	    fgets(buff, BUFFSIZE, stdin);
+	    //remove the newline from our userName
+	    buff[sizeof(buff)] = '\0';
 	    //copy our username preemptively
     	strcpy(buff,userName); 
     	//send it to the server for validation
@@ -89,8 +92,27 @@ int main(int argc, char** argv) {
     sscanf(keyLengthBuff, "%d", &keyLength);
     printf("Looks like I'm playing a game with %d players and a secret word of length %d",buff[0],keyLength);
 
-	//~select: askinput -> send word + newline with same length as secret~
+    while (true) {
+    	puts("enter a guess word if you want\n");
+    	fflush(stdout);
+    	//prepare our fd_set
+    	fd_set rfds;
+    	FD_ZERO(&rfds);
+    	FD_SET(STDIN_FILENO,&rfds);
+    	FD_SET(sock,&rfds);
+    	//~select: askinput -> send word + newline with same length as secret~
+    	select(sock+1, &rfds, NULL, NULL, NULL);
+    	if (FD_ISSET(STDIN_FILENO, &rfds)) {
+    		fgets(buff, BUFFSIZE, stdin);
+    		send(sock,buff,sizeof(buff),0);
+    	}
 
-	//~select: read() -> if 0 bytes, close socket and quit~
+    	//~select: read() -> if 0 bytes, close socket and quit~
+    	if (FD_ISSET(sock, &rfds)) {
+    		readMayQuit(sock,buff);
+    		printf("%s\n",buff);
+    		exit(0);
+    	}
+    }	
 
 }

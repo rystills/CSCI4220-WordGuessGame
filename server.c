@@ -9,6 +9,7 @@
 #include <sys/select.h>
 
 #define MAX_CLIENTS 5
+#define BUFFSIZE 2048
 
 struct client
 {
@@ -56,6 +57,8 @@ void fd_set_initialize(const struct client* clients, fd_set* set)
 
 int main(int argc, char** argv)
 {
+	char buff[BUFFSIZE];
+
 	struct client clients[MAX_CLIENTS];
 	for (int i = 0; i < MAX_CLIENTS; clients[i].port = -1, ++i);
 	int max_port = 0;
@@ -72,21 +75,36 @@ int main(int argc, char** argv)
 	servaddr.sin_port = 0;
 	if (bind(connection_socket, (const struct sockaddr *) &servaddr, s) < 0)
 		errorFailure("Bind failed");
+	
 	//check/get sin_port
 	getsockname(connection_socket, (struct sockaddr *) &servaddr,&s);
 	printf("port is: %d\n", ntohs(servaddr.sin_port));
 	fflush(stdout);
 	
+	//begin listening
 	listen(connection_socket, 1);
+	
+	//Wait for a client to connect
+	unsigned int clntLen = sizeof(servaddr);
+	if ((clients[0].port = accept(connection_socket, (struct sockaddr *) &servaddr, &clntLen)) < 0)
+		errorFailure("accept() failed");
+	
+	//greet the newly connected player
+	buff[0] = '0';
+	buff[1] = '\0';
+	send(clients[0].port,buff,sizeof(buff),0);
 
 	while (true) {
 		fd_set rfds;
 		fd_set_initialize(clients, &rfds);
 		select(max_port, &rfds, NULL, NULL, NULL);
-
+		printf("IM ALIVE");
+		fflush(stdout);
 		for (int i=0; i<MAX_CLIENTS; ++i) {
 			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds)) {
-				
+				read(clients[i].port,buff,BUFFSIZE-1);
+				printf("%s\n",buff);
+				fflush(stdout);
 			}
 		}
 	}

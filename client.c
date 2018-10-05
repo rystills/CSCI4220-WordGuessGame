@@ -67,30 +67,33 @@ int main(int argc, char** argv) {
 	//~blocking i/o wait for server to respond with request for name~
     readMayQuit(sock,buff);
     //make sure server actually asked for name (OP 0); anything else is grounds to exit
-    if (buff[0] != 0) exit(1);
+    if (buff[0] != '0') exit(1);
     char userName[BUFFSIZE];
 	//~loop: askinput for username and send to server~
 	while (true) {
 		//if we didn't quit, then we know the server asked for our username; grab it from the user and stick it in buff
-	    fgets(buff, BUFFSIZE, stdin);
+	    buff[0] = '0';
+	    printf("Please enter your username\n");
+	    fflush(stdout);
+	    fgets(buff+1, BUFFSIZE-2, stdin);
 	    //remove the newline from our userName
 	    buff[sizeof(buff)] = '\0';
 	    //copy our username preemptively
-    	strcpy(buff,userName); 
+    	strcpy(buff+1,userName); 
     	//send it to the server for validation
 	    send(sock,buff,sizeof(buff),0);
 
 		//~blocking i/o wait for server response. If accepted, break loop. Otherwise, goto askinput~
 		readMayQuit(sock,buff);    
 		//check for the ok message to break (OP 1)
-		if (buff[0] != 1) break;	
+		if (buff[0] != '1') break;	
 		//check for the retry message to continue loop (OP 2)
-		if (buff[0] != 2) exit(1);
+		if (buff[0] != '2') exit(1);
 	}
 
 	//~blocking i/o wait for server response (OP 3) -> print #players and secret length, store secret length~
     readMayQuit(sock,buff);
-    if (buff[0] != 3) exit(1);
+    if (buff[0] != '3') exit(1);
     char keyLengthBuff[16];
     strcpy(buff+2,keyLengthBuff);
     int keyLength;
@@ -108,7 +111,9 @@ int main(int argc, char** argv) {
     	//~select: askinput -> send word + newline with same length as secret~
     	select(sock+1, &rfds, NULL, NULL, NULL);
     	if (FD_ISSET(STDIN_FILENO, &rfds)) {
-    		fgets(buff, BUFFSIZE, stdin);
+    		buff[0] = 4;
+    		fgets(buff+1, BUFFSIZE-2, stdin);
+    		buff[sizeof(buff)] = '\0';
     		send(sock,buff,sizeof(buff),0);
     	}
 

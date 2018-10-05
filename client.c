@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
 	    //copy our username preemptively
     	strcpy(userName,buff+1); 
     	//send it to the server for validation
-	    send(sock,buff,strlen(buff),0);
+	    send(sock,buff,strlen(buff)+1,0);
 		//~blocking i/o wait for server response. If accepted, break loop. Otherwise, goto askinput~
 		readMayQuit(sock,buff);    
 		//check for the ok message to break (OP 3)
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
     	if (FD_ISSET(STDIN_FILENO, &rfds)) {
     		buff[0] = '4';
     		fgets(buff+1, BUFFSIZE-1, stdin);
-    		send(sock,buff,strlen(buff),0);
+    		send(sock,buff,strlen(buff)+1,0);
     	}
 
     	//~select: read() -> if 0 bytes, close socket and quit~
@@ -128,9 +128,6 @@ int main(int argc, char** argv) {
             if (buff[0] == '5') {
                 //game over
                 exit(0);
-            }
-            if (buff[0] == '6') {
-                //error; we must have sent a word of the incorrect length
             }
     	}
     }	

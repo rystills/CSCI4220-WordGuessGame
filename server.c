@@ -113,7 +113,7 @@ void sendAll(const struct client* clients, const char* msg, ...)
 
 	for (int i=0; i<MAX_CLIENTS; ++i)
 		if (clients[i].port != -1)
-			send(clients[i].port, messageToSend, strlen(messageToSend), 0);
+			send(clients[i].port, messageToSend, strlen(messageToSend)+1, 0);
 }
 
 void handleGuess(char* buff, const struct client* clients, const char* secret, const struct client* guesser)
@@ -125,7 +125,7 @@ void handleGuess(char* buff, const struct client* clients, const char* secret, c
 	*lastChar = '\0';	
 
 	if (strlen(guess) != strlen(secret))
-		send(guesser->port, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR), 0);
+		send(guesser->port, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR)+1, 0);
 	else if (strcmp(secret, guess) == 0)
 	{
 		sendAll(clients, "5%s has correctly guessed the word %s", guesser->name, secret);
@@ -136,7 +136,7 @@ void handleGuess(char* buff, const struct client* clients, const char* secret, c
 		sendAll
 		(
 			clients,
-			"5%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
+			"7%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
 			guesser->name,
 			guess,
 			correctLetters(secret, guess),
@@ -201,7 +201,7 @@ int main(int argc, char** argv)
 	//greet the newly connected player and give them a temp name
 	buff[0] = '1';
 	buff[1] = '\0';
-	send(clients[0].port,buff,strlen(buff),0);
+	send(clients[0].port,buff,strlen(buff)+1,0);
 
 	while (true) {
 		fd_set rfds;

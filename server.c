@@ -92,7 +92,7 @@ int main(int argc, char** argv)
 	//greet the newly connected player
 	buff[0] = '0';
 	buff[1] = '\0';
-	send(clients[0].port,buff,sizeof(buff),0);
+	send(clients[0].port,buff,strlen(buff),0);
 
 	while (true) {
 		fd_set rfds;

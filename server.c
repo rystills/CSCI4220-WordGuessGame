@@ -97,8 +97,10 @@ int main(int argc, char** argv)
 	while (true) {
 		fd_set rfds;
 		fd_set_initialize(clients, &rfds);
+		printf("reached before select\n");
+		fflush(stdout);
 		select(max_port, &rfds, NULL, NULL, NULL);
-		printf("IM ALIVE");
+		printf("reached after select\n");
 		fflush(stdout);
 		for (int i=0; i<MAX_CLIENTS; ++i) {
 			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds)) {

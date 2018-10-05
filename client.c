@@ -44,6 +44,16 @@ int connectToPort(int port)
 }
 
 /**
+display and exit due to receiving the wrong opcode
+@param desiredCode: the opcode we expected
+@param receivedCode: the opcode we received
+*/
+void exitUnexpectedOpcode(int desiredCode, int receivedCode) {
+	printf("Error: expected opcode %d but received opcode %d instead\n",desiredCode,receivedCode);
+	exit(EXIT_FAILURE);
+}
+
+/**
 blocking i/o read from the socket, quitting the program if 0 bytes are read or an error code is returned
 @param sock: the socket from which to read
 @param buff: the buffer in which to store the result of our read
@@ -67,13 +77,13 @@ int main(int argc, char** argv) {
 	//~blocking i/o wait for server to respond with request for name~
     readMayQuit(sock,buff);
     //make sure server actually asked for name (OP 0); anything else is grounds to exit
-    if (buff[0] != '0') exit(1);
+    if (buff[0] != '0') exitUnexpectedOpcode(0,buff[0]);
     char userName[BUFFSIZE];
 	//~loop: askinput for username and send to server~
 	while (true) {
 		//if we didn't quit, then we know the server asked for our username; grab it from the user and stick it in buff
 	    buff[0] = '0';
-	    printf("Please enter your username\n");
+	    printf("Please enter your username:\n");
 	    fflush(stdout);
 	    fgets(buff+1, BUFFSIZE-2, stdin);
 	    //remove the newline from our userName
@@ -82,18 +92,17 @@ int main(int argc, char** argv) {
     	strcpy(buff+1,userName); 
     	//send it to the server for validation
 	    send(sock,buff,sizeof(buff),0);
-
 		//~blocking i/o wait for server response. If accepted, break loop. Otherwise, goto askinput~
 		readMayQuit(sock,buff);    
 		//check for the ok message to break (OP 1)
-		if (buff[0] != '1') break;	
+		if (buff[0] == '1') break;	
 		//check for the retry message to continue loop (OP 2)
-		if (buff[0] != '2') exit(1);
+		if (buff[0] != '2') exitUnexpectedOpcode(2,buff[0]);
 	}
 
 	//~blocking i/o wait for server response (OP 3) -> print #players and secret length, store secret length~
     readMayQuit(sock,buff);
-    if (buff[0] != '3') exit(1);
+    if (buff[0] != '3') exitUnexpectedOpcode(3,buff[0]);
     char keyLengthBuff[16];
     strcpy(buff+2,keyLengthBuff);
     int keyLength;

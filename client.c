@@ -123,7 +123,15 @@ int main(int argc, char** argv) {
     	//~select: read() -> if 0 bytes, close socket and quit~
     	if (FD_ISSET(sock, &rfds)) {
     		readMayQuit(sock,buff);
-    		printf("%s\n",buff);
+            printf("%s\n",buff+1);
+            fflush(stdout);
+            if (buff[0] == '5') {
+                //game over
+                exit(0);
+            }
+            if (buff[0] == '6') {
+                //error; we must have sent a word of the incorrect length
+            }
     	}
     }	
 

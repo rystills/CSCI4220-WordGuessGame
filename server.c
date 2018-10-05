@@ -14,7 +14,7 @@
 #define MAX_CLIENTS 5
 #define BUFFSIZE 2048
 
-const char* INVALID_GUESS_ERROR = "Error, invalid guess length";
+const char* INVALID_GUESS_ERROR = "6Error, invalid guess length";
 
 struct client
 {
@@ -108,8 +108,8 @@ void sendAll(const struct client* clients, const char* msg, ...)
 	vsnprintf(messageToSend, BUFFSIZE, msg, argptr);
 	va_end(argptr);
 
-	printf("FORMATTING: %s\n", msg);
-	printf("SENDING TO ALL: %s\n", messageToSend);
+	//printf("FORMATTING: %s\n", msg);
+	//printf("SENDING TO ALL: %s\n", messageToSend);
 
 	for (int i=0; i<MAX_CLIENTS; ++i)
 		if (clients[i].port != -1)
@@ -128,7 +128,7 @@ void handleGuess(char* buff, const struct client* clients, const char* secret, c
 		send(guesser->port, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR), 0);
 	else if (strcmp(secret, guess) == 0)
 	{
-		sendAll(clients, "%s has correctly guessed the word %s", guesser->name, secret);
+		sendAll(clients, "5%s has correctly guessed the word %s", guesser->name, secret);
 		for (int i=0; i<MAX_CLIENTS; ++i)
 			shutdown(clients[i].port, SHUT_RDWR);
 	}
@@ -136,7 +136,7 @@ void handleGuess(char* buff, const struct client* clients, const char* secret, c
 		sendAll
 		(
 			clients,
-			"%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
+			"5%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
 			guesser->name,
 			guess,
 			correctLetters(secret, guess),
@@ -217,12 +217,11 @@ int main(int argc, char** argv)
 				if (buff[0] == '1')
 				{
 					//client just sent us their name; check if its in use
-					if (nameInUse(clients, buff+2))
+					if (nameInUse(clients, buff+1))
 						send(clients[i].port,"2",2,0);
 					else
 					{
 						strcpy(clients[i].name, buff+1);
-						// TODO Change to uint16_t
 						char acceptNameMessage[4];
 						acceptNameMessage[0] = '3';
 						acceptNameMessage[1] = countActivePlayers(clients);

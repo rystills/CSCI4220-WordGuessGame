@@ -66,8 +66,8 @@ int main(int argc, char** argv) {
 
 	//~blocking i/o wait for server to respond with request for name~
     readMayQuit(sock,buff);
-    //make sure server actually asked for name (code 'nm'); anything else is grounds to exit
-    if (!(buff[0] == 'n' && buff[1] == 'm' && buff[2] == '\0')) exit(1);
+    //make sure server actually asked for name (OP 0); anything else is grounds to exit
+    if (buff[0] != 0) exit(1);
     char userName[BUFFSIZE];
 	//~loop: askinput for username and send to server~
 	while (true) {
@@ -82,19 +82,20 @@ int main(int argc, char** argv) {
 
 		//~blocking i/o wait for server response. If accepted, break loop. Otherwise, goto askinput~
 		readMayQuit(sock,buff);    
-		//check for the ok message to break (code 'ok')
-		if (buff[0] = 'o' && buff[1] == 'k' && buff[2] == '\0') break;	
-		//check for the retry message to continue loop (code 'rt')
-		if (!(buff[0] == 'r' && buff[1] == 't' && buff[2] == '\0')) exit(1);
+		//check for the ok message to break (OP 1)
+		if (buff[0] != 1) break;	
+		//check for the retry message to continue loop (OP 2)
+		if (buff[0] != 2) exit(1);
 	}
 
-	//~blocking i/o wait for server response (code 'ps') -> print #players and secret length, store secret length~
+	//~blocking i/o wait for server response (OP 3) -> print #players and secret length, store secret length~
     readMayQuit(sock,buff);
+    if (buff[0] != 3) exit(1);
     char keyLengthBuff[16];
-    strcpy(buff+1,keyLengthBuff);
+    strcpy(buff+2,keyLengthBuff);
     int keyLength;
     sscanf(keyLengthBuff, "%d", &keyLength);
-    printf("Looks like I'm playing a game with %d players and a secret word of length %d\n",buff[0],keyLength);
+    printf("Looks like I'm playing a game with %d players and a secret word of length %d\n",buff[1],keyLength);
 
     while (true) {
     	puts("Enter a guess word if you want\n");

@@ -73,6 +73,11 @@ int countActivePlayers(const struct client* clients) {
 
 int main(int argc, char** argv)
 {
+	//~verify command line args~
+    if (argc != 2) {
+       fprintf(stderr,"Usage: %s <dictFileName>\n", argv[0]);
+       exit(0);
+    }
 	//load words
 	char** dictWords = NULL;
 	int numDictWords = 0;
@@ -84,13 +89,9 @@ int main(int argc, char** argv)
         dictWords[numDictWords-1] = (char*)malloc(sizeof(wordBuff));
     strcpy(dictWords[numDictWords-1], wordBuff);
     }
-    printf("total # words = %d\n",numDictWords);
+    printf("total # words in dict = %d\n",numDictWords);
     srand(time(NULL));
     int secretWordIndex = abs((rand() * rand()) % numDictWords);
-    printf("secret word index = %d\n",secretWordIndex); 
-
-	//todo: replace me with the length of the secret word
-
 	char buff[BUFFSIZE];
 
 	struct client clients[MAX_CLIENTS];
@@ -171,7 +172,7 @@ int main(int argc, char** argv)
 				}
 				else if (buff[0] == '4') {
 					//client just sent us a guess
-					
+
 				}
 			}
 		}

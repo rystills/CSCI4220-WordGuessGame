@@ -7,6 +7,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/select.h>
+#include <time.h>
+#include <sys/types.h>
 
 #define MAX_CLIENTS 5
 #define BUFFSIZE 2048
@@ -71,8 +73,23 @@ int countActivePlayers(const struct client* clients) {
 
 int main(int argc, char** argv)
 {
+	//load words
+	char** dictWords = NULL;
+	int numDictWords = 0;
+	FILE *fp = fopen(argv[1],"r");
+    char wordBuff[BUFFSIZE];
+    while( fscanf(fp, "%s", wordBuff) != EOF ) {
+    	++numDictWords;
+        dictWords = (char**)realloc(dictWords, (numDictWords)*sizeof(*dictWords));
+        dictWords[numDictWords-1] = (char*)malloc(sizeof(wordBuff));
+    strcpy(dictWords[numDictWords-1], wordBuff);
+    }
+    printf("total # words = %d\n",numDictWords);
+    srand(time(NULL));
+    int secretWordIndex = abs((rand() * rand()) % numDictWords);
+    printf("secret word index = %d\n",secretWordIndex); 
+
 	//todo: replace me with the length of the secret word
-	int secretLen = 1024;
 
 	char buff[BUFFSIZE];
 
@@ -146,7 +163,7 @@ int main(int argc, char** argv)
 						buff[0] = '3';
 						buff[1] = countActivePlayers(clients);
 						//copy in the secret word length
-						sprintf(buff+2, "%d", secretLen);
+						sprintf(buff+2, "%d", (int)strlen(dictWords[secretWordIndex]));
 						buff[2+sizeof(int)] = '\0';
 						fflush(stdout);
 						send(clients[i].port,buff,strlen(buff),0);
@@ -154,10 +171,14 @@ int main(int argc, char** argv)
 				}
 				else if (buff[0] == '4') {
 					//client just sent us a guess
+					
 				}
 			}
 		}
 	}
-	//free dynamic memory before standard exit
+
+	//free dynamic memory before quitting
 	for (int i = 0; i < MAX_CLIENTS; free(clients[i].name),++i);
+	for (int i = 0; i < numDictWords; free(dictWords[i]),++i);
+	free(&numDictWords);
 }

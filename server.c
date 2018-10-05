@@ -9,9 +9,12 @@
 #include <sys/select.h>
 #include <time.h>
 #include <sys/types.h>
+#include <stdarg.h>
 
 #define MAX_CLIENTS 5
 #define BUFFSIZE 2048
+
+const char* INVALID_GUESS_ERROR = "Error, invalid guess length";
 
 struct client
 {
@@ -25,8 +28,8 @@ display an error message and exit the application
 */
 void errorFailure(const char* msg)
 {
-    printf("Error: %s\n", msg);
-    exit(EXIT_FAILURE);
+	printf("Error: %s\n", msg);
+	exit(EXIT_FAILURE);
 }
 
 /**
@@ -50,10 +53,10 @@ initialize an fd set with a list of ports, as well as stdin
 */
 void fd_set_initialize(const struct client* clients, fd_set* set)
 {
-    FD_ZERO(set);
-    for (int i=0; i<MAX_CLIENTS; ++i)
-        if (clients[i].port != -1)
-            FD_SET(clients[i].port, set);
+	FD_ZERO(set);
+	for (int i=0; i<MAX_CLIENTS; ++i)
+		if (clients[i].port != -1)
+			FD_SET(clients[i].port, set);
 }
 
 /**
@@ -71,27 +74,98 @@ int countActivePlayers(const struct client* clients) {
 	return sum;
 }
 
+bool nameInUse(const struct client* clients, const char* name)
+{
+	for (int i=0; i<MAX_CLIENTS; ++i)
+		if (clients[i].port != -1 && strcmp(clients[i].name, name) == 0)
+			return true;
+	return false;
+}
+
+int correctLetters(const char* secret, const char* guess)
+{
+	int ans = 0;
+	//for (int i=0; i<strlen(guess); ++i)
+	//	if (strchr(secret, ))
+	return ans;
+}
+
+int correctlyPlacedLetters(const char* secret, const char* guess)
+{
+	int ans = 0;
+	for (int i=0; i<strlen(secret); ++i)
+		if (secret[i] == guess[i])
+			ans++;
+	return ans;
+}
+
+void sendAll(const struct client* clients, const char* msg, ...)
+{
+	va_list argptr;
+	va_start(argptr, msg);
+
+	char messageToSend[BUFFSIZE];
+	vsnprintf(messageToSend, BUFFSIZE, msg, argptr);
+	va_end(argptr);
+
+	printf("FORMATTING: %s\n", msg);
+	printf("SENDING TO ALL: %s\n", messageToSend);
+
+	for (int i=0; i<MAX_CLIENTS; ++i)
+		if (clients[i].port != -1)
+			send(clients[i].port, messageToSend, strlen(messageToSend), 0);
+}
+
+void handleGuess(char* buff, const struct client* clients, const char* secret, const struct client* guesser)
+{
+	char* guess = buff+1;
+	char* lastChar=guess;
+	while (*lastChar != '\n')
+		++lastChar;
+	*lastChar = '\0';	
+
+	if (strlen(guess) != strlen(secret))
+		send(guesser.port, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR), 0);
+	else if (strcmp(secret, guess) == 0)
+	{
+		sendAll(clients, "%s has correctly guessed the word %s", guesser.name, secret);
+		// TODO Disconnect all clients
+	}
+	else
+		sendAll
+		(
+			clients,
+			"%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
+			guesser.name,
+			guess,
+			correctLetters(secret, guess),
+			correctlyPlacedLetters(secret, guess)
+		);
+}
+
 int main(int argc, char** argv)
 {
 	//~verify command line args~
-    if (argc != 2) {
-       fprintf(stderr,"Usage: %s <dictFileName>\n", argv[0]);
-       exit(0);
-    }
+	if (argc != 2) {
+	   fprintf(stderr,"Usage: %s <dictFileName>\n", argv[0]);
+	   exit(0);
+	}
 	//load words
 	char** dictWords = NULL;
 	int numDictWords = 0;
 	FILE *fp = fopen(argv[1],"r");
-    char wordBuff[BUFFSIZE];
-    while( fscanf(fp, "%s", wordBuff) != EOF ) {
-    	++numDictWords;
-        dictWords = (char**)realloc(dictWords, (numDictWords)*sizeof(*dictWords));
-        dictWords[numDictWords-1] = (char*)malloc(sizeof(wordBuff));
-    strcpy(dictWords[numDictWords-1], wordBuff);
-    }
-    printf("total # words in dict = %d\n",numDictWords);
-    srand(time(NULL));
-    int secretWordIndex = abs((rand() * rand()) % numDictWords);
+	char wordBuff[BUFFSIZE];
+	while( fscanf(fp, "%s", wordBuff) != EOF ) {
+		++numDictWords;
+		dictWords = (char**)realloc(dictWords, (numDictWords)*sizeof(*dictWords));
+		dictWords[numDictWords-1] = (char*)malloc(sizeof(wordBuff));
+		strcpy(dictWords[numDictWords-1], wordBuff);
+	}
+	printf("total # words in dict = %d\n",numDictWords);
+	srand(time(NULL));
+	//char* secret = dictWords[abs((rand() * rand()) % numDictWords)];
+	char* secret = "cross";
+
 	char buff[BUFFSIZE];
 
 	struct client clients[MAX_CLIENTS];
@@ -131,49 +205,28 @@ int main(int argc, char** argv)
 	while (true) {
 		fd_set rfds;
 		fd_set_initialize(clients, &rfds);
-		printf("reached before select\n");
-		fflush(stdout);
 		select(max_port(clients)+1, &rfds, NULL, NULL, NULL);
-		printf("reached after select\n");
-		fflush(stdout);
+
 		for (int i=0; i<MAX_CLIENTS; ++i) {
 			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds)) {
 				read(clients[i].port,buff,BUFFSIZE-1);
 				printf("Just received message [%s]\n",buff);
 				fflush(stdout);
 				
-				if (buff[0] == '1') {
+				if (buff[0] == '1')
+				{
 					//client just sent us their name; check if its in use
-					bool nameInUse = false;
-					for (int r = 0; r < MAX_CLIENTS; ++r) {
-						if (i == r) {
-							continue;
-						}
-						if (clients[r].port != -1 && strcmp(buff+1,clients[r].name) == 0) {
-							//name is already in use
-							nameInUse = true;
-							buff[0] = '2';
-							buff[1] = '\0';
-							send(clients[i].port,buff,strlen(buff),0);
-							break;
-						}
-					}
-					//name is not in use
-					if (!nameInUse) {
-						strcpy(clients[i].name,buff+1);
-						buff[0] = '3';
-						buff[1] = countActivePlayers(clients);
-						//copy in the secret word length
-						sprintf(buff+2, "%d", (int)strlen(dictWords[secretWordIndex]));
-						buff[2+sizeof(int)] = '\0';
-						fflush(stdout);
-						send(clients[i].port,buff,strlen(buff),0);
+					if (nameInUse(clients, buff+2))
+						send(clients[i].port,"2",2,0);
+					else
+					{
+						strcpy(clients[i].name, buff+1);
+						char acceptNameMessage[3] = {'3', countActivePlayers(clients), (uint8_t) strlen(secret)};
+						send(clients[i].port, acceptNameMessage, 3, 0);
 					}
 				}
-				else if (buff[0] == '4') {
-					//client just sent us a guess
-
-				}
+				else if (buff[0] == '4')
+					handleGuess(buff, clients, secret, clients+i);
 			}
 		}
 	}

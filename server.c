@@ -14,6 +14,11 @@
 #define MAX_CLIENTS 5
 #define BUFFSIZE 2048
 
+ #define max(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
 const char* INVALID_GUESS_ERROR = "6Error, invalid guess length";
 
 struct client
@@ -46,14 +51,23 @@ int max_port(const struct client* clients)
 	return ans;
 }
 
+int firstFreeClientIndex(const struct client* clients) {
+	for (int i = 0; i < MAX_CLIENTS; ++i) {
+		if (clients[i].port == -1) {
+			return i;
+		}
+	}
+}
+
 /**
 initialize an fd set with a list of ports, as well as stdin
 @param clients: the array of client structs whose ports we wish to listen to in the fd set
 @param set: the fd set to initialize
 */
-void fd_set_initialize(const struct client* clients, fd_set* set)
+void fd_set_initialize(const struct client* clients, int connection_socket, fd_set* set)
 {
 	FD_ZERO(set);
+	FD_SET(connection_socket, set);
 	for (int i=0; i<MAX_CLIENTS; ++i)
 		if (clients[i].port != -1)
 			FD_SET(clients[i].port, set);
@@ -191,7 +205,7 @@ int main(int argc, char** argv)
 	struct client clients[MAX_CLIENTS];
 	for (int i = 0; i < MAX_CLIENTS; clients[i].port = -1, clients[i].name = malloc(BUFFSIZE*sizeof(char)), ++i);
 
-	int connection_socket = socket(AF_INET, SOCK_STREAM, 0);
+	int connection_socket = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 	if (connection_socket < 0)
 		errorFailure("Socket creation failed");
 	
@@ -211,21 +225,25 @@ int main(int argc, char** argv)
 	
 	//begin listening
 	listen(connection_socket, 1);
-	
-	//Wait for a client to connect
-	unsigned int clntLen = sizeof(servaddr);
-	if ((clients[0].port = accept(connection_socket, (struct sockaddr *) &servaddr, &clntLen)) < 0)
-		errorFailure("accept() failed");
-	
-	//greet the newly connected player and give them a temp name
-	buff[0] = '1';
-	buff[1] = '\0';
-	send(clients[0].port,buff,strlen(buff)+1,0);
 
 	while (true) {
 		fd_set rfds;
-		fd_set_initialize(clients, &rfds);
-		select(max_port(clients)+1, &rfds, NULL, NULL, NULL);
+		fd_set_initialize(clients, connection_socket, &rfds);
+		select(max(max_port(clients),connection_socket)+1, &rfds, NULL, NULL, NULL);
+
+		if (FD_ISSET(connection_socket,&rfds)) {
+			printf("connection socket triggered inside select");
+			fflush(stdout);
+			unsigned int clntLen = sizeof(servaddr);
+			int cliIndex = firstFreeClientIndex(clients);
+			if ((clients[cliIndex].port = accept(connection_socket, (struct sockaddr *) &servaddr, &clntLen)) < 0)
+				errorFailure("accept() failed");
+			
+			//greet the newly connected player and give them a temp name
+			buff[0] = '1';
+			buff[1] = '\0';
+			send(clients[cliIndex].port,buff,strlen(buff)+1,0);
+		}
 
 		bool gameOver = false;
 		for (int i=0; i<MAX_CLIENTS; ++i) {

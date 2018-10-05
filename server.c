@@ -84,9 +84,23 @@ bool nameInUse(const struct client* clients, const char* name)
 
 int correctLetters(const char* secret, const char* guess)
 {
+	int wordSize = strlen(secret);
 	int ans = 0;
-	//for (int i=0; i<strlen(guess); ++i)
-	//	if (strchr(secret, ))
+	char wordCopy[wordSize];
+	strcpy(wordCopy,secret);
+
+	char guessCopy[wordSize];
+	strcpy(guessCopy,guess);
+
+	for (int i = 0; i < wordSize; ++i) {
+		for (int r = 0; r < wordSize; ++r) {
+			if (wordCopy[r] == guessCopy[i] && guessCopy[i] != '\0') {
+				wordCopy[r] = '\0';
+				guessCopy[i] = '\0';
+				++ans;
+			}
+		}
+	}
 	return ans;
 }
 

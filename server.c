@@ -125,18 +125,19 @@ void handleGuess(char* buff, const struct client* clients, const char* secret, c
 	*lastChar = '\0';	
 
 	if (strlen(guess) != strlen(secret))
-		send(guesser.port, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR), 0);
+		send(guesser->port, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR), 0);
 	else if (strcmp(secret, guess) == 0)
 	{
-		sendAll(clients, "%s has correctly guessed the word %s", guesser.name, secret);
-		// TODO Disconnect all clients
+		sendAll(clients, "%s has correctly guessed the word %s", guesser->name, secret);
+		for (int i=0; i<MAX_CLIENTS; ++i)
+			shutdown(clients[i].port, SHUT_RDWR);
 	}
 	else
 		sendAll
 		(
 			clients,
 			"%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
-			guesser.name,
+			guesser->name,
 			guess,
 			correctLetters(secret, guess),
 			correctlyPlacedLetters(secret, guess)
@@ -221,8 +222,12 @@ int main(int argc, char** argv)
 					else
 					{
 						strcpy(clients[i].name, buff+1);
-						char acceptNameMessage[3] = {'3', countActivePlayers(clients), (uint8_t) strlen(secret)};
-						send(clients[i].port, acceptNameMessage, 3, 0);
+						// TODO Change to uint16_t
+						char acceptNameMessage[4];
+						acceptNameMessage[0] = '3';
+						acceptNameMessage[1] = countActivePlayers(clients);
+						*((uint16_t*) (acceptNameMessage+2)) = strlen(secret);
+						send(clients[i].port, acceptNameMessage, 4, 0);
 					}
 				}
 				else if (buff[0] == '4')

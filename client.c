@@ -101,7 +101,7 @@ int main(int argc, char** argv) {
 	}
 
 	//~print #players and secret length, store secret length~
-    uint8_t keyLength = buff[2];
+    uint16_t keyLength = *((uint16_t*) (buff+2));
     printf("Looks like I'm playing a game with %d player%s and a secret word of length %d\n",buff[1],buff[1] == 1 ? "" : "s",keyLength);
 
     while (true) {

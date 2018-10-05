@@ -57,6 +57,7 @@ int firstFreeClientIndex(const struct client* clients) {
 			return i;
 		}
 	}
+	return -1;
 }
 
 /**
@@ -236,13 +237,16 @@ int main(int argc, char** argv)
 			fflush(stdout);
 			unsigned int clntLen = sizeof(servaddr);
 			int cliIndex = firstFreeClientIndex(clients);
-			if ((clients[cliIndex].port = accept(connection_socket, (struct sockaddr *) &servaddr, &clntLen)) < 0)
-				errorFailure("accept() failed");
-			
-			//greet the newly connected player and give them a temp name
-			buff[0] = '1';
-			buff[1] = '\0';
-			send(clients[cliIndex].port,buff,strlen(buff)+1,0);
+			//ignore attempted connection if the game is full
+			if (cliIndex != -1) {
+				if ((clients[cliIndex].port = accept(connection_socket, (struct sockaddr *) &servaddr, &clntLen)) < 0)
+					errorFailure("accept() failed");
+				
+				//greet the newly connected player and give them a temp name
+				buff[0] = '1';
+				buff[1] = '\0';
+				send(clients[cliIndex].port,buff,strlen(buff)+1,0);
+			}
 		}
 
 		bool gameOver = false;

@@ -6,6 +6,7 @@
 #include <sys/select.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/select.h>
 
 #define MAX_CLIENTS 5
 
@@ -15,12 +16,21 @@ struct client
 	char* name;
 };
 
+/**
+display an error message and exit the application
+@param msg: the error message to display
+*/
 void errorFailure(const char* msg)
 {
-	printf("%s\n", msg);
-	exit(EXIT_FAILURE);
+    printf("Error: %s\n", msg);
+    exit(EXIT_FAILURE);
 }
 
+/**
+determine the port with the largest int value
+@param clients: the array of client structs whose ports we wish to check
+@return the int value of the largest port number in the provided array of ports
+*/
 int max_port(const struct client* clients)
 {
 	int ans = 0;
@@ -30,9 +40,24 @@ int max_port(const struct client* clients)
 	return ans;
 }
 
+/**
+initialize an fd set with a list of ports, as well as stdin
+@param clients: the array of client structs whose ports we wish to listen to in the fd set
+@param set: the fd set to initialize
+*/
+void fd_set_initialize(const struct client* clients, fd_set* set)
+{
+    FD_ZERO(set);
+    FD_SET(STDIN_FILENO,set);
+    for (int i=0; i<MAX_CLIENTS; ++i)
+        if (clients[i].port != -1)
+            FD_SET(clients[i].port, set);
+}
+
 int main(int argc, char** argv)
 {
 	struct client clients[MAX_CLIENTS];
+	for (int i = 0; i < MAX_CLIENTS; clients[i].port = -1, ++i);
 	int max_port = 0;
 
 	int connection_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -40,30 +65,29 @@ int main(int argc, char** argv)
 		errorFailure("Socket creation failed");
 	
 	struct sockaddr_in servaddr;
-	memset(&servaddr, 0, sizeof servaddr);
+	socklen_t s = sizeof servaddr;
+	memset(&servaddr, 0, s);
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = INADDR_ANY;
 	servaddr.sin_port = 0;
-	if (bind(connection_socket, (const struct sockaddr *) &servaddr, sizeof servaddr) < 0)
+	if (bind(connection_socket, (const struct sockaddr *) &servaddr, s) < 0)
 		errorFailure("Bind failed");
-	printf("%d\n", servaddr.sin_port);
+	//check/get sin_port
+	getsockname(connection_socket, (struct sockaddr *) &servaddr,&s);
+	printf("port is: %d\n", ntohs(servaddr.sin_port));
+	fflush(stdout);
 	
 	listen(connection_socket, 1);
 
-
-	/*
-	while (true)
-	{
+	while (true) {
 		fd_set rfds;
 		fd_set_initialize(clients, &rfds);
-		
 		select(max_port, &rfds, NULL, NULL, NULL);
 
-		for (int i=0; i<MAX_CLIENTS; ++i)
-			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds))
-			{
+		for (int i=0; i<MAX_CLIENTS; ++i) {
+			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds)) {
 				
 			}
+		}
 	}
-	*/
 }

@@ -44,18 +44,19 @@ int connectToPort(int port)
 }
 
 /**
-blocking i/o read from the socket, quitting the program if 0 bytes are read
+blocking i/o read from the socket, quitting the program if 0 bytes are read or an error code is returned
 @param sock: the socket from which to read
 @param buff: the buffer in which to store the result of our read
 */
 void readMayQuit(int sock, char* buff) {
-	read(sock,buff,BUFFSIZE-1);
+	if (read(sock,buff,BUFFSIZE-1) <= 0)
+		exit(0);
 }
 
 int main(int argc, char** argv) {
 	//~verify command line args~
     if (argc != 2) {
-       fprintf(stderr,"usage: %s <port>\n", argv[0]);
+       fprintf(stderr,"Usage: %s <port>\n", argv[0]);
        exit(0);
     }
 
@@ -63,9 +64,10 @@ int main(int argc, char** argv) {
     int sock = connectToPort(atoi(argv[1]));
     char buff[BUFFSIZE];
 
-	//~blocking i/o wait for server to respond~
+	//~blocking i/o wait for server to respond with request for name~
     readMayQuit(sock,buff);
-
+    //make sure server actually asked for name (code 'nm'); anything else is grounds to exit
+    if (!(buff[0] == 'n' && buff[1] == 'm' && buff[2] == '\0')) exit(1);
     char userName[BUFFSIZE];
 	//~loop: askinput for username and send to server~
 	while (true) {
@@ -80,20 +82,22 @@ int main(int argc, char** argv) {
 
 		//~blocking i/o wait for server response. If accepted, break loop. Otherwise, goto askinput~
 		readMayQuit(sock,buff);    
-		//check for the ok message to break
-		if (buff[0] = '0' && buff[1] == 'k' && buff[2] == '\0') break;	
+		//check for the ok message to break (code 'ok')
+		if (buff[0] = 'o' && buff[1] == 'k' && buff[2] == '\0') break;	
+		//check for the retry message to continue loop (code 'rt')
+		if (!(buff[0] == 'r' && buff[1] == 't' && buff[2] == '\0')) exit(1);
 	}
 
-	//~blocking i/o wait for server response -> print #players and secret length, store secret length~
+	//~blocking i/o wait for server response (code 'ps') -> print #players and secret length, store secret length~
     readMayQuit(sock,buff);
     char keyLengthBuff[16];
     strcpy(buff+1,keyLengthBuff);
     int keyLength;
     sscanf(keyLengthBuff, "%d", &keyLength);
-    printf("Looks like I'm playing a game with %d players and a secret word of length %d",buff[0],keyLength);
+    printf("Looks like I'm playing a game with %d players and a secret word of length %d\n",buff[0],keyLength);
 
     while (true) {
-    	puts("enter a guess word if you want\n");
+    	puts("Enter a guess word if you want\n");
     	fflush(stdout);
     	//prepare our fd_set
     	fd_set rfds;

@@ -130,7 +130,10 @@ void sendAll(const struct client* clients, const char* msg, ...)
 			send(clients[i].port, messageToSend, strlen(messageToSend)+1, 0);
 }
 
-void handleGuess(char* buff, const struct client* clients, const char* secret, const struct client* guesser)
+/**
+@return whether the game has ended (true) or not (false) 
+*/
+bool handleGuess(char* buff, const struct client* clients, const char* secret, const struct client* guesser)
 {
 	char* guess = buff+1;
 	char* lastChar=guess;
@@ -145,6 +148,7 @@ void handleGuess(char* buff, const struct client* clients, const char* secret, c
 		sendAll(clients, "5%s has correctly guessed the word %s", guesser->name, secret);
 		for (int i=0; i<MAX_CLIENTS; ++i)
 			shutdown(clients[i].port, SHUT_RDWR);
+		return true;
 	}
 	else
 		sendAll
@@ -156,6 +160,7 @@ void handleGuess(char* buff, const struct client* clients, const char* secret, c
 			correctLetters(secret, guess),
 			correctlyPlacedLetters(secret, guess)
 		);
+	return false;
 }
 
 int main(int argc, char** argv)
@@ -179,7 +184,7 @@ int main(int argc, char** argv)
 	printf("total # words in dict = %d\n",numDictWords);
 	srand(time(NULL));
 	//char* secret = dictWords[abs((rand() * rand()) % numDictWords)];
-	char* secret = "cross";
+	char* secret = "gruel";
 
 	char buff[BUFFSIZE];
 
@@ -222,6 +227,7 @@ int main(int argc, char** argv)
 		fd_set_initialize(clients, &rfds);
 		select(max_port(clients)+1, &rfds, NULL, NULL, NULL);
 
+		bool gameOver = false;
 		for (int i=0; i<MAX_CLIENTS; ++i) {
 			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds)) {
 				read(clients[i].port,buff,BUFFSIZE-1);
@@ -243,14 +249,22 @@ int main(int argc, char** argv)
 						send(clients[i].port, acceptNameMessage, 4, 0);
 					}
 				}
-				else if (buff[0] == '4')
-					handleGuess(buff, clients, secret, clients+i);
+				else if (buff[0] == '4') {
+					//exit main game loop on gameOver
+					if (handleGuess(buff, clients, secret, clients+i)) {
+						gameOver = true;
+						break;
+					}
+				}
 			}
+		}
+		if (gameOver) {
+			break;
 		}
 	}
 
 	//free dynamic memory before quitting
 	for (int i = 0; i < MAX_CLIENTS; free(clients[i].name),++i);
 	for (int i = 0; i < numDictWords; free(dictWords[i]),++i);
-	free(&numDictWords);
+	free(dictWords);
 }

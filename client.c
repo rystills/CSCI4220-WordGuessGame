@@ -103,9 +103,8 @@ int main(int argc, char** argv) {
 	//~print #players and secret length, store secret length~
     uint16_t keyLength = *((uint16_t*) (buff+2));
     printf("Looks like I'm playing a game with %d player%s and a secret word of length %d\n",buff[1],buff[1] == 1 ? "" : "s",keyLength);
-
+    puts("Feel free to start guessing!");
     while (true) {
-    	puts("Enter a guess word if you want");
     	fflush(stdout);
     	//prepare our fd_set
     	fd_set rfds;

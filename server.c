@@ -161,8 +161,9 @@ bool handleGuess(char* buff, const struct client* clients, const char* secret, c
 	else if (strcmp(secret, guess) == 0)
 	{
 		sendAll(clients, "5%s has correctly guessed the word %s", guesser->name, secret);
-		for (int i=0; i<MAX_CLIENTS; ++i)
+		for (int i=0; i<MAX_CLIENTS; ++i) {
 			shutdown(clients[i].port, SHUT_RDWR);
+		}
 		return true;
 	}
 	else
@@ -233,7 +234,7 @@ int main(int argc, char** argv)
 		select(max(max_port(clients),connection_socket)+1, &rfds, NULL, NULL, NULL);
 
 		if (FD_ISSET(connection_socket,&rfds)) {
-			printf("connection socket triggered inside select");
+			printf("connection socket triggered inside select\n");
 			fflush(stdout);
 			unsigned int clntLen = sizeof(servaddr);
 			int cliIndex = firstFreeClientIndex(clients);
@@ -252,7 +253,12 @@ int main(int argc, char** argv)
 		bool gameOver = false;
 		for (int i=0; i<MAX_CLIENTS; ++i) {
 			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds)) {
-				read(clients[i].port,buff,BUFFSIZE-1);
+				//remove client if we get a read value of 0
+				if (read(clients[i].port,buff,BUFFSIZE-1) == 0) {
+					close(clients[i].port);
+					clients[i].port = -1;
+					continue;
+				}
 				printf("Just received message [%s]\n",buff);
 				fflush(stdout);
 				

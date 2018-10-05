@@ -98,6 +98,7 @@ int main(int argc, char** argv) {
 		if (buff[0] == '3') break;	
 		//check for the retry message to continue loop (OP 2)
 		if (buff[0] != '2') exitUnexpectedOpcode(2,buff[0]);
+        puts("Error: name already taken");
 	}
 
 	//~print #players and secret length, store secret length~

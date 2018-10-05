@@ -68,7 +68,7 @@ int main(int argc, char** argv)
 		errorFailure("Socket creation failed");
 	
 	struct sockaddr_in servaddr;
-	socklen_t s = sizeof servaddr;
+	socklen_t s = sizeof(servaddr);
 	memset(&servaddr, 0, s);
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = INADDR_ANY;

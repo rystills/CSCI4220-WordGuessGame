@@ -37,7 +37,7 @@ int connectToPort(int port)
     if(inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr)<=0)
         errorFailure("Invalid address");
     
-    if (connect(ans, (struct sockaddr *) &serv_addr, sizeof serv_addr) < 0)
+    if (connect(ans, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
         errorFailure("Connecting failed");
     
     return ans;
@@ -85,9 +85,11 @@ int main(int argc, char** argv) {
 	    buff[0] = '0';
 	    printf("Please enter your username:\n");
 	    fflush(stdout);
-	    fgets(buff+1, BUFFSIZE-2, stdin);
+	    fgets(buff+1, BUFFSIZE-1, stdin);
 	    //remove the newline from our userName
-	    buff[sizeof(buff)] = '\0';
+	    buff[strlen(buff)-1] = '\0';
+	    printf("buffer test: [%s]\n",buff);
+	    fflush(stdout);
 	    //copy our username preemptively
     	strcpy(buff+1,userName); 
     	//send it to the server for validation
@@ -121,8 +123,7 @@ int main(int argc, char** argv) {
     	select(sock+1, &rfds, NULL, NULL, NULL);
     	if (FD_ISSET(STDIN_FILENO, &rfds)) {
     		buff[0] = 4;
-    		fgets(buff+1, BUFFSIZE-2, stdin);
-    		buff[sizeof(buff)] = '\0';
+    		fgets(buff+1, BUFFSIZE-1, stdin);
     		send(sock,buff,sizeof(buff),0);
     	}
 

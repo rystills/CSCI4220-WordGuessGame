@@ -49,19 +49,35 @@ initialize an fd set with a list of ports, as well as stdin
 void fd_set_initialize(const struct client* clients, fd_set* set)
 {
     FD_ZERO(set);
-    FD_SET(STDIN_FILENO,set);
     for (int i=0; i<MAX_CLIENTS; ++i)
         if (clients[i].port != -1)
             FD_SET(clients[i].port, set);
 }
 
+/**
+count the number of players with an active connection
+@param clients: the array of client structs who we wish to count for activity
+@return the number of currently active players
+*/
+int countActivePlayers(const struct client* clients) {
+	int sum = 0;
+	for (int i = 0; i < MAX_CLIENTS; ++i) {
+		if (clients[i].port != -1) {
+			++sum;
+		}
+	}
+	return sum;
+}
+
 int main(int argc, char** argv)
 {
+	//todo: replace me with the length of the secret word
+	int secretLen = 1024;
+
 	char buff[BUFFSIZE];
 
 	struct client clients[MAX_CLIENTS];
-	for (int i = 0; i < MAX_CLIENTS; clients[i].port = -1, ++i);
-	int max_port = 0;
+	for (int i = 0; i < MAX_CLIENTS; clients[i].port = -1, clients[i].name = malloc(BUFFSIZE*sizeof(char)), ++i);
 
 	int connection_socket = socket(AF_INET, SOCK_STREAM, 0);
 	if (connection_socket < 0)
@@ -89,8 +105,8 @@ int main(int argc, char** argv)
 	if ((clients[0].port = accept(connection_socket, (struct sockaddr *) &servaddr, &clntLen)) < 0)
 		errorFailure("accept() failed");
 	
-	//greet the newly connected player
-	buff[0] = '0';
+	//greet the newly connected player and give them a temp name
+	buff[0] = '1';
 	buff[1] = '\0';
 	send(clients[0].port,buff,strlen(buff),0);
 
@@ -99,15 +115,49 @@ int main(int argc, char** argv)
 		fd_set_initialize(clients, &rfds);
 		printf("reached before select\n");
 		fflush(stdout);
-		select(max_port, &rfds, NULL, NULL, NULL);
+		select(max_port(clients)+1, &rfds, NULL, NULL, NULL);
 		printf("reached after select\n");
 		fflush(stdout);
 		for (int i=0; i<MAX_CLIENTS; ++i) {
 			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds)) {
 				read(clients[i].port,buff,BUFFSIZE-1);
-				printf("%s\n",buff);
+				printf("Just received message [%s]\n",buff);
 				fflush(stdout);
+				
+				if (buff[0] == '1') {
+					//client just sent us their name; check if its in use
+					bool nameInUse = false;
+					for (int r = 0; r < MAX_CLIENTS; ++r) {
+						if (i == r) {
+							continue;
+						}
+						if (clients[r].port != -1 && strcmp(buff+1,clients[r].name) == 0) {
+							//name is already in use
+							nameInUse = true;
+							buff[0] = '2';
+							buff[1] = '\0';
+							send(clients[i].port,buff,strlen(buff),0);
+							break;
+						}
+					}
+					//name is not in use
+					if (!nameInUse) {
+						strcpy(clients[i].name,buff+1);
+						buff[0] = '3';
+						buff[1] = countActivePlayers(clients);
+						//copy in the secret word length
+						sprintf(buff+2, "%d", secretLen);
+						buff[2+sizeof(int)] = '\0';
+						fflush(stdout);
+						send(clients[i].port,buff,strlen(buff),0);
+					}
+				}
+				else if (buff[0] == '4') {
+					//client just sent us a guess
+				}
 			}
 		}
 	}
+	//free dynamic memory before standard exit
+	for (int i = 0; i < MAX_CLIENTS; free(clients[i].name),++i);
 }

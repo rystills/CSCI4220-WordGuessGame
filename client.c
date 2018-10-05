@@ -77,42 +77,35 @@ int main(int argc, char** argv) {
 	//~blocking i/o wait for server to respond with request for name~
     readMayQuit(sock,buff);
     //make sure server actually asked for name (OP 0); anything else is grounds to exit
-    if (buff[0] != '0') exitUnexpectedOpcode(0,buff[0]);
+    if (buff[0] != '1') exitUnexpectedOpcode(0,buff[0]);
     char userName[BUFFSIZE];
 	//~loop: askinput for username and send to server~
 	while (true) {
 		//if we didn't quit, then we know the server asked for our username; grab it from the user and stick it in buff
-	    buff[0] = '0';
+	    buff[0] = '1';
 	    printf("Please enter your username:\n");
 	    fflush(stdout);
 	    fgets(buff+1, BUFFSIZE-1, stdin);
 	    //remove the newline from our userName
 	    buff[strlen(buff)-1] = '\0';
-	    printf("buffer test: [%s]\n",buff);
-	    fflush(stdout);
 	    //copy our username preemptively
-    	strcpy(buff+1,userName); 
+    	strcpy(userName,buff+1); 
     	//send it to the server for validation
 	    send(sock,buff,strlen(buff),0);
 		//~blocking i/o wait for server response. If accepted, break loop. Otherwise, goto askinput~
 		readMayQuit(sock,buff);    
-		//check for the ok message to break (OP 1)
-		if (buff[0] == '1') break;	
+		//check for the ok message to break (OP 3)
+		if (buff[0] == '3') break;	
 		//check for the retry message to continue loop (OP 2)
 		if (buff[0] != '2') exitUnexpectedOpcode(2,buff[0]);
 	}
 
-	//~blocking i/o wait for server response (OP 3) -> print #players and secret length, store secret length~
-    readMayQuit(sock,buff);
-    if (buff[0] != '3') exitUnexpectedOpcode(3,buff[0]);
-    char keyLengthBuff[16];
-    strcpy(buff+2,keyLengthBuff);
-    int keyLength;
-    sscanf(keyLengthBuff, "%d", &keyLength);
-    printf("Looks like I'm playing a game with %d players and a secret word of length %d\n",buff[1],keyLength);
+	//~print #players and secret length, store secret length~
+    int keyLength = atoi(buff+2);
+    printf("Looks like I'm playing a game with %d player[s] and a secret word of length %d\n",buff[1],keyLength);
 
     while (true) {
-    	puts("Enter a guess word if you want\n");
+    	puts("Enter a guess word if you want");
     	fflush(stdout);
     	//prepare our fd_set
     	fd_set rfds;
@@ -122,7 +115,7 @@ int main(int argc, char** argv) {
     	//~select: askinput -> send word + newline with same length as secret~
     	select(sock+1, &rfds, NULL, NULL, NULL);
     	if (FD_ISSET(STDIN_FILENO, &rfds)) {
-    		buff[0] = 4;
+    		buff[0] = '4';
     		fgets(buff+1, BUFFSIZE-1, stdin);
     		send(sock,buff,strlen(buff),0);
     	}

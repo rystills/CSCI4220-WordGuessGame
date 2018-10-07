@@ -11,7 +11,9 @@
 #include <sys/types.h>
 #include <stdarg.h>
 
-#define MAX_CLIENTS 5
+#include "multiclient.h"
+#include "opcodes.h"
+
 #define BUFFSIZE 2048
 
  #define max(a,b) \
@@ -19,13 +21,7 @@
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
 
-const char* INVALID_GUESS_ERROR = "6Error, invalid guess length";
-
-struct client
-{
-	int port;
-	char name[BUFFSIZE];
-};
+const char* INVALID_GUESS_ERROR = "\4Error, invalid guess length";
 
 /**
 display an error message and exit the application
@@ -35,28 +31,6 @@ void errorFailure(const char* msg)
 {
 	printf("Error: %s\n", msg);
 	exit(EXIT_FAILURE);
-}
-
-/**
-determine the port with the largest int value
-@param clients: the array of client structs whose ports we wish to check
-@return the int value of the largest port number in the provided array of ports
-*/
-int max_port(const struct client* clients)
-{
-	int ans = 0;
-	for (int i=0; i<MAX_CLIENTS; ++i)
-		if (clients[i].port > ans)
-			ans = clients[i].port;
-	return ans;
-}
-
-struct client* firstFreeClient(struct client* clients)
-{
-	for (struct client* client=clients; client<clients+MAX_CLIENTS; ++client)
-		if (client->port == -1)
-			return client;
-	return NULL;
 }
 
 /**
@@ -70,36 +44,10 @@ fd_set selectOnSockets(const struct client* clients, int connection_socket)
 	FD_ZERO(&set);
 	FD_SET(connection_socket, &set);
 	for (int i=0; i<MAX_CLIENTS; ++i)
-		if (clients[i].port != -1)
-			FD_SET(clients[i].port, &set);
-	select(max(max_port(clients),connection_socket)+1, &set, NULL, NULL, NULL);
+		if (clients[i].socket != -1)
+			FD_SET(clients[i].socket, &set);
+	select(max(max_socket(clients),connection_socket)+1, &set, NULL, NULL, NULL);
 	return set;
-}
-
-/**
-count the number of players with an active connection
-@param clients: the array of client structs who we wish to count for activity
-@return the number of currently active players
-*/
-int countActivePlayers(const struct client* clients) {
-	int sum = 0;
-	for (int i = 0; i < MAX_CLIENTS; ++i) {
-		if (clients[i].port != -1) {
-			++sum;
-		}
-	}
-	return sum;
-}
-
-bool nameInUse(const struct client* clients, const char* name)
-{
-	for (int i=0; i<MAX_CLIENTS; ++i)
-		if (clients[i].port != -1 && strcmp(clients[i].name, name) == 0)
-		{
-			printf("\"%s\" in use by client #%d at socket %d\n", name, i, clients[i].port);
-			return true;
-		}
-	return false;
 }
 
 int correctLetters(const char* secret, const char* guess)
@@ -133,28 +81,11 @@ int correctlyPlacedLetters(const char* secret, const char* guess)
 	return ans;
 }
 
-void sendAll(const struct client* clients, const char* msg, ...)
-{
-	va_list argptr;
-	va_start(argptr, msg);
-
-	char messageToSend[BUFFSIZE];
-	vsnprintf(messageToSend, BUFFSIZE, msg, argptr);
-	va_end(argptr);
-
-	//printf("FORMATTING: %s\n", msg);
-	//printf("SENDING TO ALL: %s\n", messageToSend);
-
-	for (int i=0; i<MAX_CLIENTS; ++i)
-		if (clients[i].port != -1)
-			send(clients[i].port, messageToSend, strlen(messageToSend)+1, 0);
-}
-
 void initialGameSetup(struct client* clients, char** secret)
 {
 	// Set up clients array
 	for (int i = 0; i < MAX_CLIENTS; ++i)
-		clients[i].port = -1;
+		clients[i].socket = -1;
 
 	//*secret = dictWords[abs((rand() * rand()) % numDictWords)];
 	*secret = "gruel";
@@ -171,19 +102,19 @@ bool handleGuess(char* guess, struct client* clients, char** secret, const struc
 	*lastChar = '\0';
 
 	if (strlen(guess) != strlen(*secret))
-		send(guesser->port, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR)+1, 0);
+		send(guesser->socket, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR)+1, 0);
 	else if (strcmp(*secret, guess) == 0)
 	{
-		sendAll(clients, "5%s has correctly guessed the word %s", guesser->name, *secret);
+		sendAll(clients, "\5%s has correctly guessed the word %s", guesser->name, *secret);
 		for (int i=0; i<MAX_CLIENTS; ++i)
-			shutdown(clients[i].port, SHUT_RDWR);
+			shutdown(clients[i].socket, SHUT_RDWR);
 		initialGameSetup(clients, secret);
 	}
 	else
 		sendAll
 		(
 			clients,
-			"7%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
+			"\3%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
 			guesser->name,
 			guess,
 			correctLetters(*secret, guess),
@@ -198,45 +129,39 @@ void connectPlayer(struct sockaddr_in* servaddr, struct client* clients, int con
 	if (client != NULL)
 	{
 		unsigned int len = sizeof(struct sockaddr_in);
-		client->port = accept(connection_socket, (struct sockaddr *) servaddr, &len);
-		if (client->port < 0)
+		client->socket = accept(connection_socket, (struct sockaddr *) servaddr, &len);
+		if (client->socket < 0)
 			errorFailure("accept() failed");
 		
 		// Set name to "" to prevent the preexisting garbage name from being tested for validity
 		client->name[0] = '\0';
-
-		//greet the newly connected player and give them a temp name
-		send(client->port,"1",2,0);
+		requestName(client->socket);
 	}
 }
 
-char** loadDict(const char* filename, int* numDictWords)
+char** loadDict(const char* filename, int* numWords)
 {
-	char** dictWords;
-	FILE *fp = fopen(filename,"r");
+	*numWords = 0;
+	char** dict = NULL;
+	FILE* fp = fopen(filename,"r");
 	char wordBuff[BUFFSIZE];
-	while( fscanf(fp, "%s", wordBuff) != EOF ) {
-		++(*numDictWords);
-		dictWords = (char**)realloc(dictWords, (*numDictWords)*sizeof(*dictWords));
-		dictWords[*numDictWords-1] = (char*)malloc(sizeof(wordBuff));
-		strcpy(dictWords[*numDictWords-1], wordBuff);
+	while (fscanf(fp, "%s", wordBuff) != EOF) {
+		++(*numWords);
+		dict = realloc(dict, (*numWords)*sizeof(*dict));
+		dict[*numWords-1] = malloc(strlen(wordBuff)+1);
+		strcpy(dict[*numWords-1], wordBuff);
 	}
-	return dictWords;
+	return dict;
 }
 
 void handleNameChange(const char* name, const struct client* clients, const char* secret, struct client* sender)
 {
-	//client just sent us their name; check if its in use
 	if (nameInUse(clients, name))
-		send(sender->port,"2",2,0);
+		requestName(sender->socket);
 	else
 	{
 		strcpy(sender->name, name);
-		char acceptNameMessage[4];
-		acceptNameMessage[0] = '3';
-		acceptNameMessage[1] = countActivePlayers(clients);
-		*((uint16_t*) (acceptNameMessage+2)) = strlen(secret);
-		send(sender->port, acceptNameMessage, 4, 0);
+		acceptName(sender->socket, countActivePlayers(clients), strlen(secret));
 	}
 }
 
@@ -244,18 +169,14 @@ void handleClientMessage(struct client* clients, char* secret, struct client* se
 {
 	char buff[BUFFSIZE];
 	//remove client if we get a read value of 0
-	if (read(sender->port,buff,BUFFSIZE-1) == 0) {
-		printf("%s (socket %d) has disconnected\n", sender->name, sender->port);
-		close(sender->port);
-		sender->port = -1;
-		return;
+	if (read(sender->socket,buff,BUFFSIZE-1) == 0) {
+		printf("%s (socket %d) has disconnected\n", sender->name, sender->socket);
+		close(sender->socket);
+		sender->socket = -1;
 	}
-	printf("Just received message [%s]\n",buff);
-	fflush(stdout);
-				
-	if (buff[0] == '1')
+	else if (buff[0] == SEND_NAME)
 		handleNameChange(buff+1, clients, secret, sender);
-	else if (buff[0] == '4')
+	else if (buff[0] == SEND_GUESS)
 		handleGuess(buff+1, clients, &secret, sender);
 }
 
@@ -299,11 +220,8 @@ int main(int argc, char** argv)
 
 	struct sockaddr_in servaddr;
 	int connection_socket = initializeListenerSocket(&servaddr);
-
 	struct client clients[MAX_CLIENTS];
 	char* secret;
-	//for (int i = 0; i < MAX_CLIENTS; ++i)
-	//	clients[i].name = malloc(BUFFSIZE*sizeof(char));
 	initialGameSetup(clients, &secret);
 
 	while (true) {
@@ -313,11 +231,7 @@ int main(int argc, char** argv)
 			connectPlayer(&servaddr, clients, connection_socket);
 
 		for (int i=0; i<MAX_CLIENTS; ++i)
-			if (clients[i].port != -1 && FD_ISSET(clients[i].port, &rfds))
+			if (clients[i].socket != -1 && FD_ISSET(clients[i].socket, &rfds))
 				handleClientMessage(clients, secret, clients+i);
 	}
-	//free dynamic memory before quitting
-	for (int i = 0; i < numDictWords; ++i)
-		free(dictWords[i]);
-	free(dictWords);
 }

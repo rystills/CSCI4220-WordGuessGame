@@ -8,6 +8,8 @@
 #include <string.h>
 #include <sys/select.h>
 
+#include "opcodes.h"
+
 #define BUFFSIZE 2048
 
 /**
@@ -43,24 +45,42 @@ int connectToPort(int port)
     return ans;
 }
 
-/**
-display and exit due to receiving the wrong opcode
-@param desiredCode: the opcode we expected
-@param receivedCode: the opcode we received
-*/
-void exitUnexpectedOpcode(int desiredCode, int receivedCode) {
-	printf("Error: expected opcode %d but received opcode %d instead\n",desiredCode,receivedCode);
-	exit(EXIT_FAILURE);
+void handleClientInput(int sock, bool requestingName)
+{
+	char buff[BUFFSIZE];
+	fgets(buff+1, BUFFSIZE-1, stdin);
+	buff[strlen(buff+1)] = '\0';
+	buff[0] = requestingName ? SEND_NAME : SEND_GUESS;
+	send(sock, buff, strlen(buff)+1, 0);
 }
 
-/**
-blocking i/o read from the socket, quitting the program if 0 bytes are read or an error code is returned
-@param sock: the socket from which to read
-@param buff: the buffer in which to store the result of our read
-*/
-void readMayQuit(int sock, char* buff) {
-	if (read(sock,buff,BUFFSIZE-1) <= 0)
+void handleServerMessage(int sock, bool* requestingName)
+{
+	char buff[BUFFSIZE];
+	if (read(sock,buff,BUFFSIZE) == 0)
 		exit(0);
+	if (buff[0] == REQ_NAME)
+	{
+		*requestingName = true;
+		printf("Please enter your username:\n");
+	}
+	else if (buff[0] == ACK_NAME)
+	{
+		*requestingName = false;
+		uint16_t keyLength = *((uint16_t*) (buff+2));
+    	printf
+		(
+			"Looks like I'm playing a game with %d player%s and a secret word of length %d\n",
+			buff[1],
+			buff[1] == 1 ? "" : "s",
+			keyLength
+		);
+	}
+	else
+	{
+		printf("%s\n", buff+1);
+		exit(0);
+	}
 }
 
 int main(int argc, char** argv) {
@@ -70,66 +90,19 @@ int main(int argc, char** argv) {
        exit(0);
     }
 
-	//~connect to server~
-    int sock = connectToPort(atoi(argv[1]));
-    char buff[BUFFSIZE];
-
-	//~blocking i/o wait for server to respond with request for name~
-    readMayQuit(sock,buff);
-    //make sure server actually asked for name (OP 0); anything else is grounds to exit
-    if (buff[0] != '1') exitUnexpectedOpcode(0,buff[0]);
-    char userName[BUFFSIZE];
-	//~loop: askinput for username and send to server~
-	while (true) {
-		//if we didn't quit, then we know the server asked for our username; grab it from the user and stick it in buff
-	    buff[0] = '1';
-	    printf("Please enter your username:\n");
-	    fflush(stdout);
-	    fgets(buff+1, BUFFSIZE-1, stdin);
-	    //remove the newline from our userName
-	    buff[strlen(buff)-1] = '\0';
-	    //copy our username preemptively
-    	strcpy(userName,buff+1); 
-    	//send it to the server for validation
-	    send(sock,buff,strlen(buff)+1,0);
-		//~blocking i/o wait for server response. If accepted, break loop. Otherwise, goto askinput~
-		readMayQuit(sock,buff);    
-		//check for the ok message to break (OP 3)
-		if (buff[0] == '3') break;	
-		//check for the retry message to continue loop (OP 2)
-		if (buff[0] != '2') exitUnexpectedOpcode(2,buff[0]);
-        puts("Error: name already taken");
-	}
-
-	//~print #players and secret length, store secret length~
-    uint16_t keyLength = *((uint16_t*) (buff+2));
-    printf("Looks like I'm playing a game with %d player%s and a secret word of length %d\n",buff[1],buff[1] == 1 ? "" : "s",keyLength);
-    puts("Feel free to start guessing!");
-    while (true) {
-    	fflush(stdout);
-    	//prepare our fd_set
-    	fd_set rfds;
+	int sock = connectToPort(atoi(argv[1]));
+	bool requestingName = false;
+	while (true)
+	{
+		fd_set rfds;
     	FD_ZERO(&rfds);
     	FD_SET(STDIN_FILENO,&rfds);
     	FD_SET(sock,&rfds);
-    	//~select: askinput -> send word + newline with same length as secret~
-    	select(sock+1, &rfds, NULL, NULL, NULL);
-    	if (FD_ISSET(STDIN_FILENO, &rfds)) {
-    		buff[0] = '4';
-    		fgets(buff+1, BUFFSIZE-1, stdin);
-    		send(sock,buff,strlen(buff)+1,0);
-    	}
+		select(sock+1, &rfds, NULL, NULL, NULL);
 
-    	//~select: read() -> if 0 bytes, close socket and quit~
-    	if (FD_ISSET(sock, &rfds)) {
-    		readMayQuit(sock,buff);
-            printf("%s\n",buff+1);
-            fflush(stdout);
-            if (buff[0] == '5') {
-                //game over
-                exit(0);
-            }
-    	}
-    }	
-
+		if (FD_ISSET(STDIN_FILENO, &rfds))
+			handleClientInput(sock, requestingName);
+		if (FD_ISSET(sock, &rfds))
+			handleServerMessage(sock, &requestingName);
+	}
 }

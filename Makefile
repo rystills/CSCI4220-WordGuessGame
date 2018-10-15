@@ -1,2 +1,2 @@
-make: main.c
-	gcc -o wordguess.out main.c -I.
+make: server.c
+	gcc -o wordguess.out server.c -I.

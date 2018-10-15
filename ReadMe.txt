@@ -1,6 +1,6 @@
 Collaborators: Ryan Stillings, Jordan Alligood
 
-Opcodes:
+Opcodes (deprecated):
 1: request for name / sending name
 2: name already taken; enter another name
 3: name accepted; sent #players and secret word length info

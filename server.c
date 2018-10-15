@@ -104,6 +104,7 @@ bool handleGuess(char* guess, struct client* clients, char** secret, const struc
 {
 	guess[strlen(guess)-1] = '\0';
 	printf("Guess is \"%s\"\n", guess);
+	printf("Guess length is %zu\n",strlen(guess));
 
 	if (strlen(guess) != strlen(*secret))
 		send(guesser->socket, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR)+1, 0);
@@ -189,7 +190,10 @@ void handleClientMessage(struct client* clients, char* secret, struct client* se
 {
 	char buff[BUFFSIZE];
 	//remove client if we get a read value of 0
-	if (read(sender->socket,buff,BUFFSIZE-1) == 0) {
+	ssize_t amntRead = read(sender->socket,buff,BUFFSIZE-1);
+	buff[amntRead] = '\0';
+	printf("size received is %zu\n",amntRead);
+	if (amntRead == 0) {
 		printf("%s (socket %d) has disconnected\n", sender->name, sender->socket);
 		close(sender->socket);
 		sender->socket = -1;

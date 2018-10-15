@@ -12,7 +12,6 @@
 #include <stdarg.h>
 
 #include "multiclient.h"
-#include "opcodes.h"
 
 #define BUFFSIZE 2048
 
@@ -21,7 +20,7 @@
        __typeof__ (b) _b = (b); \
      _a > _b ? _a : _b; })
 
-const char* INVALID_GUESS_ERROR = "\4Error, invalid guess length";
+const char* INVALID_GUESS_ERROR = "Error, invalid guess length\n";
 
 /**
 display an error message and exit the application
@@ -48,6 +47,12 @@ fd_set selectOnSockets(const struct client* clients, int connection_socket)
 			FD_SET(clients[i].socket, &set);
 	select(max(max_socket(clients),connection_socket)+1, &set, NULL, NULL, NULL);
 	return set;
+}
+
+void requestName(int socket)
+{
+	static const char* message = "Please enter a name\n";
+	send(socket, message, strlen(message), 0);
 }
 
 int correctLetters(const char* secret, const char* guess)
@@ -96,16 +101,14 @@ void initialGameSetup(struct client* clients, char** secret)
 */
 bool handleGuess(char* guess, struct client* clients, char** secret, const struct client* guesser)
 {
-	char* lastChar=guess;
-	while (*lastChar != '\n')
-		++lastChar;
-	*lastChar = '\0';
+	guess[strlen(guess)-1] = '\0';
+	printf("Guess is \"%s\"\n", guess);
 
 	if (strlen(guess) != strlen(*secret))
 		send(guesser->socket, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR)+1, 0);
 	else if (strcmp(*secret, guess) == 0)
 	{
-		sendAll(clients, "\5%s has correctly guessed the word %s", guesser->name, *secret);
+		sendAll(clients, "%s has correctly guessed the word %s", guesser->name, *secret);
 		for (int i=0; i<MAX_CLIENTS; ++i)
 			shutdown(clients[i].socket, SHUT_RDWR);
 		initialGameSetup(clients, secret);
@@ -114,7 +117,7 @@ bool handleGuess(char* guess, struct client* clients, char** secret, const struc
 		sendAll
 		(
 			clients,
-			"\3%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
+			"%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
 			guesser->name,
 			guess,
 			correctLetters(*secret, guess),
@@ -154,8 +157,24 @@ char** loadDict(const char* filename, int* numWords)
 	return dict;
 }
 
-void handleNameChange(const char* name, const struct client* clients, const char* secret, struct client* sender)
+void acceptName(int socket, int activePlayers, uint16_t secretWordLength)
 {
+	char message[1024];
+	int messageLength = snprintf
+	(
+		message,
+		1024,
+		"Looks like I'm playing a game with %d player(s) and a secret word of length %d\n",
+		activePlayers,
+		secretWordLength
+	);
+	send(socket, message, messageLength, 0);
+}
+
+void handleNameChange(char* name, const struct client* clients, const char* secret, struct client* sender)
+{
+	printf("Name is \"%s\"\n", name);
+	name[strlen(name)-1] = '\0';
 	if (nameInUse(clients, name))
 		requestName(sender->socket);
 	else
@@ -174,10 +193,10 @@ void handleClientMessage(struct client* clients, char* secret, struct client* se
 		close(sender->socket);
 		sender->socket = -1;
 	}
-	else if (buff[0] == SEND_NAME)
-		handleNameChange(buff+1, clients, secret, sender);
-	else if (buff[0] == SEND_GUESS)
-		handleGuess(buff+1, clients, &secret, sender);
+	else if (sender->name[0] == '\0')
+		handleNameChange(buff, clients, secret, sender);
+	else
+		handleGuess(buff, clients, &secret, sender);
 }
 
 int initializeListenerSocket(struct sockaddr_in* servaddr)

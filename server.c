@@ -92,6 +92,7 @@ void initialGameSetup(struct client* clients, char** secret)
 	for (int i = 0; i < MAX_CLIENTS; ++i)
 		clients[i].socket = -1;
 
+	//todo: uncomment me when you're all done
 	//*secret = dictWords[abs((rand() * rand()) % numDictWords)];
 	*secret = "gruel";
 }
@@ -108,7 +109,7 @@ bool handleGuess(char* guess, struct client* clients, char** secret, const struc
 		send(guesser->socket, INVALID_GUESS_ERROR, strlen(INVALID_GUESS_ERROR)+1, 0);
 	else if (strcmp(*secret, guess) == 0)
 	{
-		sendAll(clients, "%s has correctly guessed the word %s", guesser->name, *secret);
+		sendAll(clients, "%s has correctly guessed the word %s\n", guesser->name, *secret);
 		for (int i=0; i<MAX_CLIENTS; ++i)
 			shutdown(clients[i].socket, SHUT_RDWR);
 		initialGameSetup(clients, secret);
@@ -117,7 +118,7 @@ bool handleGuess(char* guess, struct client* clients, char** secret, const struc
 		sendAll
 		(
 			clients,
-			"%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed",
+			"%s guessed %s: %d letter(s) were correct and %d letter(s) were correctly placed\n",
 			guesser->name,
 			guess,
 			correctLetters(*secret, guess),

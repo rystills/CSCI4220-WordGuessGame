@@ -177,7 +177,6 @@ void handleNameChange(char* name, const struct client* clients, const char* secr
 	else
 	{
 		strcpy(sender->name, name);
-		printf("Secret word in handleNameChange is: %s\n",secret);
 		acceptName(sender->socket, countActivePlayers(clients), strlen(secret));
 	}
 }
@@ -234,7 +233,7 @@ int main(int argc, char** argv)
 	//load words
 	int numDictWords;
 	char** dictWords = loadDict(argv[1], &numDictWords);
-	printf("total # words in dict = %d\n",numDictWords);
+	//printf("total # words in dict = %d\n",numDictWords);
 	srand(time(NULL));
 
 	struct sockaddr_in servaddr;
